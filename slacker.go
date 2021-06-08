@@ -2,6 +2,7 @@ package slacker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -51,6 +52,7 @@ func NewClient(botToken, appToken string, options ...ClientOption) *Slacker {
 		socketModeClient:  smc,
 		commandChannel:    make(chan *CommandEvent, 100),
 		unAuthorizedError: unAuthorizedError,
+		interactiveActionHandler: defaults.InteractiveActionHandler,
 	}
 	return slacker
 }
@@ -71,6 +73,7 @@ type Slacker struct {
 	unAuthorizedError     error
 	commandChannel        chan *CommandEvent
 	appID                 string
+	interactiveActionHandler InteractiveActionHandlerFunc
 }
 
 // BotCommands returns Bot Commands
@@ -181,6 +184,17 @@ func (s *Slacker) Listen(ctx context.Context) error {
 
 					s.socketModeClient.Ack(*evt.Request)
 
+				case socketmode.EventTypeInteractive:
+					callback, ok := evt.Data.(slack.InteractionCallback)
+					if !ok {
+						fmt.Printf("Ignored %+v", evt)
+						continue
+					}
+					switch callback.Type {
+					case slack.InteractionTypeBlockActions:
+						s.interactiveActionHandler(ctx, s.client, s.socketModeClient, callback)
+					}
+					s.socketModeClient.Ack(*evt.Request)
 				default:
 					s.socketModeClient.Debugf("unsupported Events API event received")
 				}
@@ -292,6 +306,11 @@ func (s *Slacker) handleMessageEvent(ctx context.Context, evt interface{}) {
 		cmd.Execute(botCtx, request, response)
 		return
 	}
+}
+
+func (s *Slacker) handleInteractionButtonEvent(ctx context.Context, callback interface{}) {
+	return
+
 }
 
 func newMessageEvent(evt interface{}) *MessageEvent {

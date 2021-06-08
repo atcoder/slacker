@@ -1,9 +1,14 @@
 package slacker
 
-import "github.com/slack-go/slack"
+import (
+	"context"
+	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/socketmode"
+)
 
 // ClientOption an option for client values
 type ClientOption func(*ClientDefaults)
+type InteractiveActionHandlerFunc func(ctx context.Context, api *slack.Client, client *socketmode.Client, callback slack.InteractionCallback)
 
 // WithDebug sets debug toggle
 func WithDebug(debug bool) ClientOption {
@@ -12,14 +17,22 @@ func WithDebug(debug bool) ClientOption {
 	}
 }
 
+func WithInteractiveActionHandler(f InteractiveActionHandlerFunc) ClientOption {
+	return func(defaults *ClientDefaults) {
+		defaults.InteractiveActionHandler = f
+	}
+}
+
 // ClientDefaults configuration
 type ClientDefaults struct {
 	Debug bool
+	InteractiveActionHandler InteractiveActionHandlerFunc
 }
 
 func newClientDefaults(options ...ClientOption) *ClientDefaults {
 	config := &ClientDefaults{
 		Debug: false,
+		InteractiveActionHandler: func(ctx context.Context, api *slack.Client, client *socketmode.Client, callback slack.InteractionCallback) {},
 	}
 
 	for _, option := range options {
